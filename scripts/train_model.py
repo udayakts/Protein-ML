@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from imblearn.over_sampling import SMOTE  # Import SMOTE
 
 # Load the extracted features dataset
 df = pd.read_csv("data/swissprot_features.csv")
@@ -31,7 +31,7 @@ accuracy_rf = accuracy_score(y_test, y_pred_rf)
 print(f"Random Forest Accuracy: {accuracy_rf:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_rf))
 
-# Confusion Matrix Visualization (Fix: Prevent script from pausing)
+# Confusion Matrix Visualization
 plt.figure(figsize=(5,4))
 sns.heatmap(confusion_matrix(y_test, y_pred_rf), annot=True, cmap="coolwarm", fmt="d",
             xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
@@ -41,18 +41,21 @@ plt.title("Confusion Matrix - Random Forest")
 
 # Ensure the 'outputs' directory exists before saving
 output_dir = "outputs"
-os.makedirs(output_dir, exist_ok=True)  # Create directory if it doesn't exist
+os.makedirs(output_dir, exist_ok=True)
 
 # Save the confusion matrix safely
 plt.savefig(os.path.join(output_dir, "confusion_matrix_rf.png"))
 plt.close()  # Close figure
 
-# Reduce dataset size for SVM to make it faster (1000 samples)
-X_train_svm, _, y_train_svm, _ = train_test_split(X_train, y_train, train_size=1000, random_state=42)
+# **Fix Imbalance: Apply SMOTE to balance classes**
+smote = SMOTE(random_state=42)
+X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
-# Use SGDClassifier instead of SVC for faster training
+print(f"Class distribution after SMOTE: {np.bincount(y_train_balanced)}")
+
+# Train an SVM Model on balanced data
 svm_model = SGDClassifier(loss="hinge", random_state=42, max_iter=1000, tol=1e-3, verbose=1)  # Much faster SVM
-svm_model.fit(X_train_svm, y_train_svm)
+svm_model.fit(X_train_balanced, y_train_balanced)
 
 # Make Predictions
 y_pred_svm = svm_model.predict(X_test)
