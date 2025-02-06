@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -5,7 +6,7 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
-from sklearn.linear_model import SGDClassifier  # Faster alternative to SVC
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 # Load the extracted features dataset
@@ -38,9 +39,12 @@ plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Confusion Matrix - Random Forest")
 
-# Show or Save Plot
-plt.show(block=False)  # Fix: Continue script execution
-plt.savefig("outputs/confusion_matrix_rf.png")  # Save figure as an image
+# Ensure the 'outputs' directory exists before saving
+output_dir = "outputs"
+os.makedirs(output_dir, exist_ok=True)  # Create directory if it doesn't exist
+
+# Save the confusion matrix safely
+plt.savefig(os.path.join(output_dir, "confusion_matrix_rf.png"))
 plt.close()  # Close figure
 
 # Reduce dataset size for SVM to make it faster (1000 samples)
