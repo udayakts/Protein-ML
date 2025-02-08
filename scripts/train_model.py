@@ -6,13 +6,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import SGDClassifier
+from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from imblearn.over_sampling import SMOTE  
 
-# Redirect logs to a file
+# Ensure output directory exists
 output_dir = "outputs"
 os.makedirs(output_dir, exist_ok=True)
+
+# Redirect logs to a file
 log_file = open(os.path.join(output_dir, "training_log.txt"), "w")
 sys.stdout = log_file  
 
@@ -24,11 +26,20 @@ X = df.drop(columns=["Label"])
 y = df["Label"]  
 
 # Split into training and testing sets (80% train, 20% test)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# Train a Random Forest Classifier
-rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_model.fit(X_train, y_train)
+# **Fix Imbalance: Apply Moderate SMOTE**
+smote = SMOTE(sampling_strategy=0.6, random_state=42)  # Balances minority class to 60% of majority class
+X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+
+print(f"Class distribution after SMOTE: {np.bincount(y_train_balanced)}")
+
+# **Train an Improved Random Forest Classifier**
+rf_model = RandomForestClassifier(n_estimators=200, 
+                                  max_depth=15, 
+                                  min_samples_leaf=5,  
+                                  random_state=42)
+rf_model.fit(X_train_balanced, y_train_balanced)
 
 # Make predictions
 y_pred_rf = rf_model.predict(X_test)
@@ -38,26 +49,18 @@ accuracy_rf = accuracy_score(y_test, y_pred_rf)
 print(f"Random Forest Accuracy: {accuracy_rf:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_rf))
 
-# Confusion Matrix Visualization
+# Confusion Matrix - Random Forest
 plt.figure(figsize=(5,4))
 sns.heatmap(confusion_matrix(y_test, y_pred_rf), annot=True, cmap="coolwarm", fmt="d",
             xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Confusion Matrix - Random Forest")
-
-# Save the confusion matrix safely
 plt.savefig(os.path.join(output_dir, "confusion_matrix_rf.png"))
 plt.close()  
 
-# **Fix Imbalance: Apply Moderate SMOTE**
-smote = SMOTE(sampling_strategy=0.3, random_state=42)  # Only oversample to 30%
-X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-
-print(f"Class distribution after SMOTE: {np.bincount(y_train_balanced)}")
-
-# Train an Improved SVM Model (Logistic Regression)
-svm_model = SGDClassifier(loss="log", random_state=42, max_iter=1000, tol=1e-3, verbose=1)  
+# **Train an Improved SVM Model with RBF Kernel**
+svm_model = SVC(kernel="rbf", class_weight="balanced", random_state=42)
 svm_model.fit(X_train_balanced, y_train_balanced)
 
 # Make Predictions
@@ -67,6 +70,16 @@ y_pred_svm = svm_model.predict(X_test)
 accuracy_svm = accuracy_score(y_test, y_pred_svm)
 print(f"SVM Accuracy: {accuracy_svm:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_svm))
+
+# Confusion Matrix - SVM
+plt.figure(figsize=(5,4))
+sns.heatmap(confusion_matrix(y_test, y_pred_svm), annot=True, cmap="coolwarm", fmt="d",
+            xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - SVM")
+plt.savefig(os.path.join(output_dir, "confusion_matrix_svm.png"))
+plt.close()  
 
 # Close log file
 sys.stdout.close()
