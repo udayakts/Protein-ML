@@ -7,6 +7,7 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler  # Added feature scaling
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from imblearn.over_sampling import SMOTE  
 
@@ -29,13 +30,18 @@ y = df["Label"]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
 # **Fix Imbalance: Apply Moderate SMOTE**
-smote = SMOTE(sampling_strategy=0.3, random_state=42)  # Only oversample to 30% instead of 60%
+smote = SMOTE(sampling_strategy=0.3, random_state=42)  # Balances minority class to 30% of majority class
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
 print(f"Class distribution after SMOTE: {np.bincount(y_train_balanced)}")
 
+# **Apply Feature Scaling for SVM**
+scaler = StandardScaler()
+X_train_balanced = scaler.fit_transform(X_train_balanced)
+X_test = scaler.transform(X_test)
+
 # **Train an Optimized Random Forest Classifier**
-rf_model = RandomForestClassifier(n_estimators=100,  # Reduced to speed up training
+rf_model = RandomForestClassifier(n_estimators=100,  # Reduced for faster training
                                   max_depth=15, 
                                   min_samples_leaf=5,  
                                   class_weight="balanced",  
@@ -61,8 +67,8 @@ plt.title("Confusion Matrix - Random Forest")
 plt.savefig(os.path.join(output_dir, "confusion_matrix_rf.png"))
 plt.close()  
 
-# **Train a Faster SVM Model (LinearSVC Instead of RBF Kernel)**
-svm_model = LinearSVC(class_weight="balanced", random_state=42, max_iter=5000)  # Faster than Kernel SVM
+# **Train a Faster SVM Model with Feature Scaling**
+svm_model = LinearSVC(class_weight="balanced", random_state=42, max_iter=10000, dual=False)  # Optimized for large datasets
 svm_model.fit(X_train_balanced, y_train_balanced)
 
 # Make Predictions
