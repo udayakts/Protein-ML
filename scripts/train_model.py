@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler  # Added feature scaling
+from xgboost import XGBClassifier  # Replacing SVM with XGBoost
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from imblearn.over_sampling import SMOTE  
+from imblearn.combine import SMOTETomek  # Better oversampling technique
 
 # Ensure output directory exists
 output_dir = "outputs"
@@ -29,65 +29,45 @@ y = df["Label"]
 # Split into training and testing sets (80% train, 20% test)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# **Fix Imbalance: Apply Moderate SMOTE**
-smote = SMOTE(sampling_strategy=0.3, random_state=42)  # Balances minority class to 30% of majority class
+# **Fix Imbalance: Apply SMOTETomek Instead of SMOTE**
+smote = SMOTETomek(sampling_strategy=0.2, random_state=42)  # Less aggressive oversampling
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
-print(f"Class distribution after SMOTE: {np.bincount(y_train_balanced)}")
+print(f"Class distribution after SMOTETomek: {np.bincount(y_train_balanced)}")
 
-# **Apply Feature Scaling for SVM**
+# **Apply Feature Scaling**
 scaler = StandardScaler()
 X_train_balanced = scaler.fit_transform(X_train_balanced)
 X_test = scaler.transform(X_test)
 
-# **Train an Optimized Random Forest Classifier**
-rf_model = RandomForestClassifier(n_estimators=100,  # Reduced for faster training
-                                  max_depth=15, 
-                                  min_samples_leaf=5,  
+# **Train an Improved Random Forest Classifier**
+rf_model = RandomForestClassifier(n_estimators=100,  
+                                  max_depth=15,  
+                                  min_samples_leaf=10,  
                                   class_weight="balanced",  
-                                  n_jobs=-1,  # Uses all CPU cores
+                                  n_jobs=-1,  
                                   random_state=42)
 rf_model.fit(X_train_balanced, y_train_balanced)
 
 # Make predictions
 y_pred_rf = rf_model.predict(X_test)
 
-# Evaluate the Random Forest model
+# Evaluate Random Forest
 accuracy_rf = accuracy_score(y_test, y_pred_rf)
 print(f"Random Forest Accuracy: {accuracy_rf:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_rf))
 
-# Confusion Matrix - Random Forest
-plt.figure(figsize=(5,4))
-sns.heatmap(confusion_matrix(y_test, y_pred_rf), annot=True, cmap="coolwarm", fmt="d",
-            xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
-plt.xlabel("Predicted")
-plt.ylabel("Actual")
-plt.title("Confusion Matrix - Random Forest")
-plt.savefig(os.path.join(output_dir, "confusion_matrix_rf.png"))
-plt.close()  
-
-# **Train a Faster SVM Model with Feature Scaling**
-svm_model = LinearSVC(class_weight="balanced", random_state=42, max_iter=10000, dual=False)  # Optimized for large datasets
-svm_model.fit(X_train_balanced, y_train_balanced)
+# **Train XGBoost Instead of SVM**
+xgb_model = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
+xgb_model.fit(X_train_balanced, y_train_balanced)
 
 # Make Predictions
-y_pred_svm = svm_model.predict(X_test)
+y_pred_xgb = xgb_model.predict(X_test)
 
-# Evaluate the SVM model
-accuracy_svm = accuracy_score(y_test, y_pred_svm)
-print(f"SVM Accuracy: {accuracy_svm:.2f}")
-print("Classification Report:\n", classification_report(y_test, y_pred_svm))
-
-# Confusion Matrix - SVM
-plt.figure(figsize=(5,4))
-sns.heatmap(confusion_matrix(y_test, y_pred_svm), annot=True, cmap="coolwarm", fmt="d",
-            xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
-plt.xlabel("Predicted")
-plt.ylabel("Actual")
-plt.title("Confusion Matrix - SVM")
-plt.savefig(os.path.join(output_dir, "confusion_matrix_svm.png"))
-plt.close()  
+# Evaluate XGBoost
+accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
+print(f"XGBoost Accuracy: {accuracy_xgb:.2f}")
+print("Classification Report:\n", classification_report(y_test, y_pred_xgb))
 
 # Close log file
 sys.stdout.close()
