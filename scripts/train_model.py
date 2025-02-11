@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from imblearn.over_sampling import SMOTE  
+from imblearn.over_sampling import BorderlineSMOTE  # ✅ Corrected Import
 
 # Ensure output directory exists
 output_dir = "outputs"
@@ -28,8 +28,8 @@ y = df["Label"]
 # Train-test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# **Apply Borderline-SMOTE (Reduced Oversampling)**
-smote = SMOTE(sampling_strategy=0.2, kind="borderline-1", random_state=42)
+# ✅ **Apply Corrected Borderline-SMOTE**
+smote = BorderlineSMOTE(sampling_strategy=0.2, kind="borderline-1", random_state=42)
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
 print(f"Class distribution after Borderline SMOTE: {np.bincount(y_train_balanced)}")
