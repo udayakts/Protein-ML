@@ -30,7 +30,7 @@ y = df["Label"]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
 # **Fix Imbalance: Apply Borderline SMOTE (Reduced Ratio)**
-smote = BorderlineSMOTE(sampling_strategy=0.15, kind="borderline-1", random_state=42)
+smote = BorderlineSMOTE(sampling_strategy=0.1, kind="borderline-1", random_state=42)
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
 print(f"Class distribution after Borderline SMOTE: {np.bincount(y_train_balanced)}")
@@ -57,19 +57,21 @@ accuracy_rf = accuracy_score(y_test, y_pred_rf)
 print(f"Random Forest Accuracy: {accuracy_rf:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_rf))
 
-# **Train XGBoost with Focal Loss and Class Weighting**
+# **Train XGBoost with Adjusted Threshold and Regularization**
 scale_pos_weight = len(y_train_balanced) / sum(y_train_balanced == 1)
 xgb_model = XGBClassifier(use_label_encoder=False, 
                           eval_metric="logloss", 
                           scale_pos_weight=scale_pos_weight, 
-                          max_depth=10, 
+                          max_depth=8,  # Reduce overfitting
                           learning_rate=0.05, 
                           objective="binary:logistic", 
-                          gamma=2)  # Focal Loss effect
+                          gamma=2,
+                          reg_alpha=1)  # Add L1 regularization
 xgb_model.fit(X_train_balanced, y_train_balanced)
 
-# Make Predictions
-y_pred_xgb = xgb_model.predict(X_test)
+# **Make Predictions with Adjusted Threshold**
+y_pred_xgb_proba = xgb_model.predict_proba(X_test)[:, 1]  # Get probability for Class 1
+y_pred_xgb = (y_pred_xgb_proba > 0.3).astype(int)  # Lower threshold for better precision
 
 # Evaluate XGBoost
 accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
