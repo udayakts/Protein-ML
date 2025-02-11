@@ -6,10 +6,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier, plot_importance  # Optimized XGBoost
-from sklearn.preprocessing import StandardScaler
+from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from imblearn.over_sampling import BorderlineSMOTE  # Improved SMOTE
+from imblearn.over_sampling import SMOTE  
 
 # Ensure output directory exists
 output_dir = "outputs"
@@ -19,37 +18,35 @@ os.makedirs(output_dir, exist_ok=True)
 log_file = open(os.path.join(output_dir, "training_log.txt"), "w")
 sys.stdout = log_file  
 
-# Load the extracted features dataset
+# Load dataset
 df = pd.read_csv("data/swissprot_features.csv")
 
 # Separate features and labels
 X = df.drop(columns=["Label"])  
 y = df["Label"]  
 
-# Split into training and testing sets (80% train, 20% test)
+# Train-test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# **Fix Imbalance: Apply Borderline SMOTE (Reduced Ratio)**
-smote = BorderlineSMOTE(sampling_strategy=0.1, kind="borderline-1", random_state=42)
+# **Apply Borderline-SMOTE (Reduced Oversampling)**
+smote = SMOTE(sampling_strategy=0.2, kind="borderline-1", random_state=42)
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
 print(f"Class distribution after Borderline SMOTE: {np.bincount(y_train_balanced)}")
 
-# **Apply Feature Scaling**
-scaler = StandardScaler()
-X_train_balanced = scaler.fit_transform(X_train_balanced)
-X_test = scaler.transform(X_test)
-
-# **Train an Optimized Random Forest Classifier**
-rf_model = RandomForestClassifier(n_estimators=100,  
-                                  max_depth=15,  
-                                  min_samples_leaf=10,  
-                                  class_weight="balanced",  
-                                  n_jobs=-1,  
-                                  random_state=42)
+# **Optimized Random Forest**
+rf_model = RandomForestClassifier(
+    n_estimators=300,  
+    max_depth=20,  
+    min_samples_split=10,  
+    min_samples_leaf=5,  
+    class_weight="balanced",  
+    n_jobs=-1,  
+    random_state=42
+)
 rf_model.fit(X_train_balanced, y_train_balanced)
 
-# Make predictions
+# Predictions - Random Forest
 y_pred_rf = rf_model.predict(X_test)
 
 # Evaluate Random Forest
@@ -57,32 +54,45 @@ accuracy_rf = accuracy_score(y_test, y_pred_rf)
 print(f"Random Forest Accuracy: {accuracy_rf:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_rf))
 
-# **Train XGBoost with Adjusted Threshold and Regularization**
-scale_pos_weight = len(y_train_balanced) / sum(y_train_balanced == 1)
-xgb_model = XGBClassifier(use_label_encoder=False, 
-                          eval_metric="logloss", 
-                          scale_pos_weight=scale_pos_weight, 
-                          max_depth=8,  # Reduce overfitting
-                          learning_rate=0.05, 
-                          objective="binary:logistic", 
-                          gamma=2,
-                          reg_alpha=1)  # Add L1 regularization
+# Save Confusion Matrix - Random Forest
+plt.figure(figsize=(5,4))
+sns.heatmap(confusion_matrix(y_test, y_pred_rf), annot=True, cmap="coolwarm", fmt="d",
+            xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - Random Forest")
+plt.savefig(os.path.join(output_dir, "confusion_matrix_rf.png"))
+plt.close()  
+
+# **Optimized XGBoost Model**
+xgb_model = XGBClassifier(
+    n_estimators=300,  
+    max_depth=10,  
+    learning_rate=0.05,  
+    scale_pos_weight=10,  
+    use_label_encoder=False,
+    eval_metric="logloss",
+    random_state=42
+)
 xgb_model.fit(X_train_balanced, y_train_balanced)
 
-# **Make Predictions with Adjusted Threshold**
-y_pred_xgb_proba = xgb_model.predict_proba(X_test)[:, 1]  # Get probability for Class 1
-y_pred_xgb = (y_pred_xgb_proba > 0.3).astype(int)  # Lower threshold for better precision
+# Predictions - XGBoost
+y_pred_xgb = xgb_model.predict(X_test)
 
 # Evaluate XGBoost
 accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
 print(f"XGBoost Accuracy: {accuracy_xgb:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_xgb))
 
-# **Feature Importance Analysis**
-plt.figure(figsize=(10,6))
-plot_importance(xgb_model, max_num_features=10)
-plt.savefig(os.path.join(output_dir, "feature_importance_xgb.png"))
-plt.close()
+# Save Confusion Matrix - XGBoost
+plt.figure(figsize=(5,4))
+sns.heatmap(confusion_matrix(y_test, y_pred_xgb), annot=True, cmap="coolwarm", fmt="d",
+            xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - XGBoost")
+plt.savefig(os.path.join(output_dir, "confusion_matrix_xgb.png"))
+plt.close()  
 
 # Close log file
 sys.stdout.close()
