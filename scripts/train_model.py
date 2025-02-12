@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from xgboost import XGBClassifier
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from imblearn.over_sampling import ADASYN  # Adjusted for better oversampling
+from imblearn.over_sampling import ADASYN
 
 # Ensure output directory exists
 output_dir = "outputs"
@@ -21,48 +21,44 @@ sys.stdout = log_file
 df = pd.read_csv("data/swissprot_features.csv")
 
 # Separate features and labels
-X = df.drop(columns=["Label"])  # Features
-y = df["Label"]  # Labels
+X = df.drop(columns=["Label"])  
+y = df["Label"]  
 
 # Split into training and testing sets (80% train, 20% test)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# **Fix Imbalance: Apply Controlled ADASYN**
-adasyn = ADASYN(sampling_strategy=0.5, random_state=42)  # Reduce synthetic samples
+# **Apply ADASYN to Handle Imbalance**
+adasyn = ADASYN(sampling_strategy=0.5, random_state=42)  # Adjust sampling ratio
 X_train_balanced, y_train_balanced = adasyn.fit_resample(X_train, y_train)
 
 print(f"Class distribution after ADASYN: {np.bincount(y_train_balanced)}")
 
-# **Train an Optimized XGBoost Model**
-xgb_model = XGBClassifier(n_estimators=200,  
-                          max_depth=10,  
-                          learning_rate=0.05,  
-                          scale_pos_weight=3,  # Adjust class imbalance
-                          eval_metric="logloss",
-                          random_state=42)
-
-xgb_model.fit(X_train_balanced, y_train_balanced)
-
-# Select Important Features
-important_features = xgb_model.get_booster().get_score(importance_type="weight")
-important_features = sorted(important_features, key=important_features.get, reverse=True)[:15]
-
-# Reduce dataset to important features
+# **Feature Selection: Keep Most Important Features**
+important_features = ["Molecular_Weight", "Hydrophobicity", "W", "Y", "F", "C", "E", "D", "G", "V"]
 X_train_selected = X_train_balanced[important_features]
 X_test_selected = X_test[important_features]
 
-# Retrain Model with Selected Features
+# **Train Optimized XGBoost Model**
+xgb_model = xgb.XGBClassifier(
+    n_estimators=300,  # Increased for better learning
+    max_depth=10,
+    learning_rate=0.05,  # Reduced to prevent overfitting
+    scale_pos_weight=5,  # Balancing false positives
+    eval_metric="logloss",
+    random_state=42
+)
+
 xgb_model.fit(X_train_selected, y_train_balanced)
 
 # Make Predictions
 y_pred_xgb = xgb_model.predict(X_test_selected)
 
-# Evaluate the XGBoost Model
+# Evaluate the Model
 accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
 print(f"XGBoost Accuracy: {accuracy_xgb:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_xgb))
 
-# Confusion Matrix - XGBoost
+# **Confusion Matrix - XGBoost**
 plt.figure(figsize=(6,5))
 sns.heatmap(confusion_matrix(y_test, y_pred_xgb), annot=True, cmap="coolwarm", fmt="d",
             xticklabels=["Non-Enzyme", "Enzyme"], yticklabels=["Non-Enzyme", "Enzyme"])
@@ -72,18 +68,17 @@ plt.title("Confusion Matrix - XGBoost")
 plt.savefig(os.path.join(output_dir, "confusion_matrix_xgb.png"))
 plt.close()  
 
-# Feature Importance Plot
-feature_importance = xgb_model.get_booster().get_score(importance_type="weight")
-sorted_features = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
-labels, scores = zip(*sorted_features)
+# **Plot Feature Importance**
+importance = xgb_model.get_booster().get_score(importance_type="weight")
+importance_df = pd.DataFrame(importance.items(), columns=["Feature", "F score"]).sort_values(by="F score", ascending=False)
 
 plt.figure(figsize=(10,6))
-plt.barh(labels, scores)
+sns.barplot(x="F score", y="Feature", data=importance_df)
+for i, v in enumerate(importance_df["F score"]):
+    plt.text(v + 100, i, f"{v:.1f}", color="black")
 plt.xlabel("F score")
-plt.ylabel("Features")
+plt.ylabel("Feature")
 plt.title("Feature Importance - XGBoost")
-for i, v in enumerate(scores):
-    plt.text(v + 50, i, f"{v:.1f}", va='center')
 plt.savefig(os.path.join(output_dir, "feature_importance_xgb.png"))
 plt.close()
 
