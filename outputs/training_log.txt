@@ -1,12 +1,12 @@
-Class distribution after ADASYN: [453389 136135]
-XGBoost Accuracy: 0.96
+Class distribution after ADASYN: [453389 180662]
+XGBoost Accuracy: 0.90
 Classification Report:
                precision    recall  f1-score   support
 
-           0       1.00      0.97      0.98    113347
-           1       0.19      0.75      0.30      1177
+           0       1.00      0.90      0.95    113347
+           1       0.08      0.80      0.14      1177
 
-    accuracy                           0.96    114524
-   macro avg       0.59      0.86      0.64    114524
-weighted avg       0.99      0.96      0.97    114524
+    accuracy                           0.90    114524
+   macro avg       0.54      0.85      0.54    114524
+weighted avg       0.99      0.90      0.94    114524
 

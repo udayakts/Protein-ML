@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from imblearn.over_sampling import ADASYN  # Use ADASYN instead of SMOTE
 from xgboost import XGBClassifier
+from imblearn.over_sampling import ADASYN  
 
 # Ensure output directory exists
 output_dir = "outputs"
@@ -24,29 +24,39 @@ df = pd.read_csv("data/swissprot_features.csv")
 X = df.drop(columns=["Label"])  
 y = df["Label"]  
 
-# Train-test split (stratified)
+# Split into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# **Fix Imbalance with ADASYN**
-adasyn = ADASYN(sampling_strategy=0.3, random_state=42)  # Generates harder examples
+# **Apply ADASYN for Improved Oversampling**
+adasyn = ADASYN(sampling_strategy=0.4, random_state=42)  # Increased balance
 X_train_balanced, y_train_balanced = adasyn.fit_resample(X_train, y_train)
 
 print(f"Class distribution after ADASYN: {np.bincount(y_train_balanced)}")
 
-# **Train an Improved XGBoost Classifier**
-xgb_model = XGBClassifier(n_estimators=200, 
-                          max_depth=10, 
-                          learning_rate=0.1, 
-                          scale_pos_weight=len(y_train_balanced[y_train_balanced == 0]) / len(y_train_balanced[y_train_balanced == 1]),  # Adjusts for imbalance
-                          use_label_encoder=False, 
-                          eval_metric='logloss', 
-                          random_state=42)
+# **Train an Initial XGBoost Classifier**
+xgb_model = XGBClassifier(n_estimators=300, 
+                          learning_rate=0.05, 
+                          max_depth=10,  
+                          scale_pos_weight=8,  # Handle class imbalance
+                          random_state=42,
+                          n_jobs=-1)
 xgb_model.fit(X_train_balanced, y_train_balanced)
 
-# Make predictions
-y_pred_xgb = xgb_model.predict(X_test)
+# **Feature Importance Analysis**
+feature_importance = xgb_model.feature_importances_
+important_features = X.columns[feature_importance > 0.005]  # Keep top features
 
-# Evaluate XGBoost Model
+# **Reduce dataset to important features**
+X_train_selected = X_train_balanced[important_features]
+X_test_selected = X_test[important_features]
+
+# **Retrain XGBoost on Selected Features**
+xgb_model.fit(X_train_selected, y_train_balanced)
+
+# Make predictions
+y_pred_xgb = xgb_model.predict(X_test_selected)
+
+# Evaluate the XGBoost model
 accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
 print(f"XGBoost Accuracy: {accuracy_xgb:.2f}")
 print("Classification Report:\n", classification_report(y_test, y_pred_xgb))
@@ -61,17 +71,12 @@ plt.title("Confusion Matrix - XGBoost")
 plt.savefig(os.path.join(output_dir, "confusion_matrix_xgb.png"))
 plt.close()  
 
-# Feature Importance Plot
+# Save Feature Importance Plot
 plt.figure(figsize=(8,6))
-feature_importance = xgb_model.get_booster().get_score(importance_type='weight')
-sorted_features = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
-features, scores = zip(*sorted_features[:10])  # Top 10 important features
-plt.barh(features, scores)
+plt.barh(important_features, feature_importance[feature_importance > 0.005])
 plt.xlabel("F score")
 plt.ylabel("Features")
 plt.title("Feature Importance - XGBoost")
-for i, v in enumerate(scores):
-    plt.text(v + 5, i, str(v), color='black')
 plt.savefig(os.path.join(output_dir, "feature_importance_xgb.png"))
 plt.close()
 
