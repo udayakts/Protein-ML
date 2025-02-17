@@ -1,12 +1,11 @@
-Class distribution after SMOTE: [453389 113347]
-XGBoost Accuracy: 0.85
+XGBoost Accuracy: 0.61
+
 Classification Report:
-               precision    recall  f1-score   support
+              precision    recall  f1-score   support
 
-           0       1.00      0.85      0.92    113347
-           1       0.05      0.79      0.10      1177
+           0       1.00      0.61      0.76    113347
+           1       0.02      0.93      0.05      1177
 
-    accuracy                           0.85    114524
-   macro avg       0.52      0.82      0.51    114524
-weighted avg       0.99      0.85      0.91    114524
-
+    accuracy                           0.61    114524
+   macro avg       0.51      0.77      0.40    114524
+weighted avg       0.99      0.61      0.75    114524
