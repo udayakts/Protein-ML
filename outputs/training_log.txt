@@ -1,11 +1,11 @@
-XGBoost Accuracy: 0.38
+XGBoost Accuracy: 0.97
 
 Classification Report:
               precision    recall  f1-score   support
 
-           0       1.00      0.37      0.54    113347
-           1       0.02      0.96      0.03      1177
+           0       1.00      0.97      0.98    113347
+           1       0.22      0.77      0.34      1177
 
-    accuracy                           0.38    114524
-   macro avg       0.51      0.67      0.29    114524
-weighted avg       0.99      0.38      0.54    114524
+    accuracy                           0.97    114524
+   macro avg       0.61      0.87      0.66    114524
+weighted avg       0.99      0.97      0.98    114524
